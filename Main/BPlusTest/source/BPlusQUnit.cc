@@ -70,6 +70,7 @@ int main (int argc, char *argv[]) {
                 QUNIT_IS_TRUE (result);
 	}
 	FALLTHROUGH_INTENDED;
+            break;
 	case 2:
 	{
 		cout << "TEST 2... creating tree for small table, on nationkey " << flush;
