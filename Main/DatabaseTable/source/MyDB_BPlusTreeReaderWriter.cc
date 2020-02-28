@@ -76,8 +76,10 @@ bool MyDB_BPlusTreeReaderWriter :: discoverPages (int curNode, vector <MyDB_Page
         return true;
     }else{//node
         //comparator
-        MyDB_INRecordPtr mLBRec = make_shared<MyDB_INRecord>(lowerBound);
-        MyDB_INRecordPtr mUPRec = make_shared<MyDB_INRecord>(upperBound);
+        MyDB_INRecordPtr mLBRec = getINRecord ();
+        mLBRec->setKey(lowerBound);
+        MyDB_INRecordPtr mUPRec = getINRecord ();
+        mUPRec->setKey(upperBound);
         MyDB_INRecordPtr mInRec = getINRecord();
         function <bool()> lowComparatorIn = buildComparator(mInRec,mLBRec);
         function <bool()> highComparatorIn = buildComparator(mUPRec, mInRec);
@@ -99,21 +101,62 @@ bool MyDB_BPlusTreeReaderWriter :: discoverPages (int curNode, vector <MyDB_Page
                     isLeaves = discoverPages(mInRec->getPtr(),mList,lowerBound, upperBound);
                 }
             }
-
         }
     }
 	return false;
 }
 
 void MyDB_BPlusTreeReaderWriter :: append (MyDB_RecordPtr appendMe) {
+    if(this->getNumPages()<=0){//empty table
+        MyDB_PageReaderWriterPtr mPageRW = make_shared<MyDB_PageReaderWriter>(*this, forMe->lastPage()+1);
+    }
+    MyDB_RecordPtr newRoot = append(rootLocation, appendMe);
+//    if(newRoot){//old root split
+//
+//    }
 }
 
-MyDB_RecordPtr MyDB_BPlusTreeReaderWriter :: split (MyDB_PageReaderWriter, MyDB_RecordPtr) {
+MyDB_RecordPtr MyDB_BPlusTreeReaderWriter :: split (MyDB_PageReaderWriter mPageRW, MyDB_RecordPtr mRec) {
 	return nullptr;
 }
 
-MyDB_RecordPtr MyDB_BPlusTreeReaderWriter :: append (int, MyDB_RecordPtr) {
-	return nullptr;
+MyDB_RecordPtr MyDB_BPlusTreeReaderWriter :: append (int whichPage, MyDB_RecordPtr mRec) {
+    //if interal node page
+    if((*this)[whichPage].getType() == MyDB_PageType::DirectoryPage){
+        //get the page
+        MyDB_PageReaderWriter mPageRW = (*this)[whichPage];
+        MyDB_RecordIteratorAltPtr it = mPageRW.getIteratorAlt();
+        MyDB_INRecordPtr tempRec = getINRecord();
+        auto comparator = buildComparator(tempRec, mRec);//return true if tempRec < mRec, otherwise return false
+        while(it->advance()){
+            it->getCurrent(tempRec);//iterate the internal record
+            //if mRec <= tempRec
+            if(!comparator()) break;
+        }
+
+        MyDB_RecordPtr newRec = append(tempRec->getPtr(), mRec);
+        if(!newRec) return nullptr;//no split in the page it points to.
+        else{
+            bool isAppend = mPageRW.append(newRec);
+            if(!isAppend){
+                return split(mPageRW, newRec);
+            }else{//successfully append
+                MyDB_INRecordPtr lhs = getINRecord();
+                MyDB_INRecordPtr rhs = getINRecord();
+                auto tempComparator = buildComparator(lhs, rhs);
+                mPageRW.sortInPlace(comparator,lhs,rhs);
+                return nullptr;
+            }
+        }
+
+    }else{//leave page
+        MyDB_PageReaderWriter mPageRW = (*this)[whichPage];
+        bool isAppend = mPageRW.append(mRec);
+        if(isAppend) return nullptr;
+        else{//not appended
+            return split(mPageRW, mRec);
+        }
+    }
 }
 
 MyDB_INRecordPtr MyDB_BPlusTreeReaderWriter :: getINRecord () {
