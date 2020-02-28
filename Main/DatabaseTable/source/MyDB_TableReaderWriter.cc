@@ -61,7 +61,7 @@ MyDB_PageReaderWriter MyDB_TableReaderWriter :: operator [] (size_t i) {
 	while (i > forMe->lastPage ()) {
 		forMe->setLastPage (forMe->lastPage () + 1);
 		lastPage = make_shared <MyDB_PageReaderWriter> (*this, forMe->lastPage ());
-		lastPage->clear ();	
+		lastPage->clear ();
 	}
 
 	// now get the page

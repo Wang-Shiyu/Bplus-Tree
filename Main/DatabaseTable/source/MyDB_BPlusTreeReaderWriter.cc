@@ -107,13 +107,39 @@ bool MyDB_BPlusTreeReaderWriter :: discoverPages (int curNode, vector <MyDB_Page
 }
 
 void MyDB_BPlusTreeReaderWriter :: append (MyDB_RecordPtr appendMe) {
-    if(this->getNumPages()<=0){//empty table
-        MyDB_PageReaderWriterPtr mPageRW = make_shared<MyDB_PageReaderWriter>(*this, forMe->lastPage()+1);
+    if(rootLocation==-1){//empty table
+        //root page
+        MyDB_PageReaderWriter mPageRW = (*this)[0]; //page zero already exist. Just use it.
+        mPageRW.clear();
+        mPageRW.setType(MyDB_PageType::DirectoryPage);
+        MyDB_INRecordPtr newRec= getINRecord();
+        newRec->setPtr(1);
+        mPageRW.append(newRec);
+        forMe->setRootLocation(0);
+        rootLocation = forMe->getRootLocation();//set rootLocation
+
+        //leaf page
+        MyDB_PageReaderWriter correspLeave = (*this)[1];
+        correspLeave.setType(MyDB_PageType::RegularPage);
+        correspLeave.append(appendMe);
+        return;
     }
-    MyDB_RecordPtr newRoot = append(rootLocation, appendMe);
-//    if(newRoot){//old root split
-//
-//    }
+    //otherwise
+    auto newRoot = append(rootLocation, appendMe);
+    if(newRoot){//old root split, get new Root
+        //new root
+        MyDB_PageReaderWriter newRootPage = (*this)[forMe->lastPage() + 1];
+        newRootPage.setType(MyDB_PageType::DirectoryPage);
+        newRootPage.append(newRoot);
+
+        //inf root point to old root(larger one);
+        MyDB_INRecordPtr newInf = getINRecord();
+        newInf->setPtr(rootLocation);//old root;
+        newRootPage.append(newInf);
+
+        rootLocation = forMe->lastPage();
+        forMe->setRootLocation(rootLocation);
+    }
 }
 
 MyDB_RecordPtr MyDB_BPlusTreeReaderWriter :: split (MyDB_PageReaderWriter mPageRW, MyDB_RecordPtr mRec) {
