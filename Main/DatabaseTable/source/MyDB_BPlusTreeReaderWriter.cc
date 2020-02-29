@@ -107,7 +107,7 @@ bool MyDB_BPlusTreeReaderWriter :: discoverPages (int curNode, vector <MyDB_Page
 }
 
 void MyDB_BPlusTreeReaderWriter :: append (MyDB_RecordPtr appendMe) {
-<<<<<<< Updated upstream
+
     if(rootLocation==-1){//empty table
         //root page
         MyDB_PageReaderWriter mPageRW = (*this)[0]; //page zero already exist. Just use it.
@@ -141,10 +141,6 @@ void MyDB_BPlusTreeReaderWriter :: append (MyDB_RecordPtr appendMe) {
         rootLocation = forMe->lastPage();
         forMe->setRootLocation(rootLocation);
     }
-}
-
-MyDB_RecordPtr MyDB_BPlusTreeReaderWriter :: split (MyDB_PageReaderWriter mPageRW, MyDB_RecordPtr mRec) {
-	return nullptr;
 }
 
 MyDB_RecordPtr MyDB_BPlusTreeReaderWriter :: append (int whichPage, MyDB_RecordPtr mRec) {
@@ -184,7 +180,7 @@ MyDB_RecordPtr MyDB_BPlusTreeReaderWriter :: append (int whichPage, MyDB_RecordP
             return split(mPageRW, mRec);
         }
     }
-=======
+
     // call append(root, rec), traverse until find a leaf node using page type
     //if the helper function indicates that a split has happened 
     // then this method needs to handle this by creating a new root
@@ -232,17 +228,15 @@ MyDB_RecordPtr MyDB_BPlusTreeReaderWriter :: split (MyDB_PageReaderWriter splitM
             if (i <= midPos) {
                 (*this)[newPage].append(oldRecList[i-1]);
                 if (i == midPos) {
-                    middleRec->setKey(oldRecList[i-1]->getAtt(0));
+                    middleRec->setKey(oldRecList[i-1]->getAtt(0)); //getAtt不知道对不对
                 }
             } else {
                 splitMe.append(oldRecList[i-1]);
             }
         }
-        // modify pointers
-        middleRec->setPtr(newPage);
-        // return the IN Record of the new page
     } else if (splitMe.getType() == DirectoryPage) {
         // Inner Page
+        // new page append an empty inner node
         MyDB_INRecordPtr curr = getINRecord();
         // store every record in the old page
         vector<MyDB_INRecordPtr> innerNodes;
@@ -255,25 +249,28 @@ MyDB_RecordPtr MyDB_BPlusTreeReaderWriter :: split (MyDB_PageReaderWriter splitM
         splitMe.clear();
         // kick the middle one to the parent inner page
         int mid = counter / 2;
+        int child;
         for (int i = 1; i <= counter; i++) {
             if (i < mid) {
                 (*this)[newPage].append(innerNodes[i-1]);
             } else if (i == mid) {
-                middleRec.set
+                middleRec->setKey(innerNodes[i-1]->getKey());
+                child = innerNodes[i]->getPtr();
             } else {
                 splitMe.append(innerNodes[i-1]);
             }
         }
+        MyDB_INRecordPtr infinity = getINRecord();
+        // middle record's child
+        infinity->setPtr(child);
+        (*this)[newPage].append(infinity);
+        // 疑问：正无穷应该不算是一个record
+        // done.
     }
+    // modify pointers
+    middleRec->setPtr(newPage);
+    // return the IN Record of the new page
 	return middleRec;
-}
-
-MyDB_RecordPtr MyDB_BPlusTreeReaderWriter :: append (int, MyDB_RecordPtr) {
-    // 2 case
-    // 1. size > pagesize/recordsize
-    // 2. size < pagesize/recordsize append rec to last rec, done
-	return nullptr;
->>>>>>> Stashed changes
 }
 
 MyDB_INRecordPtr MyDB_BPlusTreeReaderWriter :: getINRecord () {
