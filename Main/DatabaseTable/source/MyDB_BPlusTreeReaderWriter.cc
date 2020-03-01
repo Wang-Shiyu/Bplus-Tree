@@ -36,19 +36,23 @@ MyDB_RecordIteratorAltPtr MyDB_BPlusTreeReaderWriter :: getSortedRangeIteratorAl
     MyDB_RecordPtr myRecIn = getEmptyRecord();
 
     //the record of lowerBound and upperBound
-    MyDB_INRecordPtr mLBRec = make_shared<MyDB_INRecord>(lowerBound);
-    MyDB_INRecordPtr mUPRec = make_shared<MyDB_INRecord>(upperBound);
+    MyDB_INRecordPtr mLBRec = getINRecord();
+    mLBRec->setKey (lowerBound);
+    MyDB_INRecordPtr mUPRec = getINRecord();
+    mUPRec->setKey (upperBound);
 
-    function <bool()> lowComparatorIn = buildComparator(mLBRec,lhs);
-    function <bool()> highComparatorIn = buildComparator(rhs, mUPRec);
+    function <bool()> lowComparator = buildComparator(mLBRec,lhs);
+    function <bool()> highComparator = buildComparator(rhs, mUPRec);
 
-	return make_shared <MyDB_PageListIteratorSelfSortingAlt> (mList, lhs, rhs, myComp, myRecIn, lowComparatorIn, highComparatorIn, true);
+	return make_shared <MyDB_PageListIteratorSelfSortingAlt> (mList, lhs, rhs, myComp, myRecIn, lowComparator, highComparator, true);
 }
 
 MyDB_RecordIteratorAltPtr MyDB_BPlusTreeReaderWriter :: getRangeIteratorAlt (MyDB_AttValPtr lowerBound, MyDB_AttValPtr upperBound) {
     vector<MyDB_PageReaderWriter> mList;
+    cout<<"11"<<endl;
     discoverPages(rootLocation, mList, lowerBound, upperBound);
-
+    cout<<"22"<<endl;
+    cout<<mList.size()<<endl;
     //Build comparator
     MyDB_RecordPtr lhs = getEmptyRecord();
     MyDB_RecordPtr rhs = getEmptyRecord();
@@ -57,13 +61,15 @@ MyDB_RecordIteratorAltPtr MyDB_BPlusTreeReaderWriter :: getRangeIteratorAlt (MyD
     MyDB_RecordPtr myRecIn = getEmptyRecord();
 
     //the record of lowerBound and upperBound
-    MyDB_INRecordPtr mLBRec = make_shared<MyDB_INRecord>(lowerBound);
-    MyDB_INRecordPtr mUPRec = make_shared<MyDB_INRecord>(upperBound);
+    MyDB_INRecordPtr mLBRec = getINRecord();
+    mLBRec->setKey (lowerBound);
+    MyDB_INRecordPtr mUPRec = getINRecord();
+    mUPRec->setKey (upperBound);
 
-    function <bool()> lowComparatorIn = buildComparator(mLBRec,lhs);
-    function <bool()> highComparatorIn = buildComparator(rhs, mUPRec);
+    function <bool()> lowComparator = buildComparator(myRecIn,mLBRec);
+    function <bool()> highComparator = buildComparator(mUPRec, myRecIn);
 
-    return make_shared <MyDB_PageListIteratorSelfSortingAlt> (mList, lhs, rhs, myComp, myRecIn, lowComparatorIn, highComparatorIn, false);
+    return make_shared <MyDB_PageListIteratorSelfSortingAlt> (mList, lhs, rhs, myComp, myRecIn, lowComparator, highComparator, false);
 }
 
 
@@ -81,8 +87,9 @@ bool MyDB_BPlusTreeReaderWriter :: discoverPages (int curNode, vector <MyDB_Page
         MyDB_INRecordPtr mUPRec = getINRecord ();
         mUPRec->setKey(upperBound);
         MyDB_INRecordPtr mInRec = getINRecord();
-        function <bool()> lowComparatorIn = buildComparator(mInRec,mLBRec);
-        function <bool()> highComparatorIn = buildComparator(mUPRec, mInRec);
+
+        function <bool()> lowComparator = buildComparator(mInRec,mLBRec);
+        function <bool()> highComparator = buildComparator(mUPRec, mInRec);
 
         MyDB_RecordIteratorAltPtr mRec = mPageRW.getIteratorAlt();
         bool isLeaves = false;
@@ -90,8 +97,8 @@ bool MyDB_BPlusTreeReaderWriter :: discoverPages (int curNode, vector <MyDB_Page
         while(mRec->advance()){
             //current (key, pointer) pair in current page
             mRec->getCurrent(mInRec);
-            bool high = !highComparatorIn();//mUPRec >= mInRec
-            bool low = !lowComparatorIn();//mInRec >= mLBRec
+            bool high = !highComparator();//mUPRec >= mInRec
+            bool low = !lowComparator();//mInRec >= mLBRec
 
             if(!high) return false;//out of bound
             if(low){//not out of bound
@@ -120,12 +127,16 @@ void MyDB_BPlusTreeReaderWriter :: append (MyDB_RecordPtr appendMe) {
         rootLocation = forMe->getRootLocation();//set rootLocation
 
         //leaf page
+        forMe->setLastPage(1);
         MyDB_PageReaderWriter correspLeave = (*this)[1];
+        correspLeave.clear();
         correspLeave.setType(MyDB_PageType::RegularPage);
         correspLeave.append(appendMe);
+        //cout<<"empty node"<<endl;
         return;
     }
     //otherwise
+    //cout<<"not empty node"<<endl;
     auto newRoot = append(rootLocation, appendMe);
     if(newRoot){//old root split, get new Root
         //new root
@@ -187,48 +198,58 @@ MyDB_RecordPtr MyDB_BPlusTreeReaderWriter :: append (int whichPage, MyDB_RecordP
     // that contains pointers to both the old root and the result of the split.
 }
 
-MyDB_RecordPtr MyDB_BPlusTreeReaderWriter :: split (MyDB_PageReaderWriter splitMe, MyDB_RecordPtr andMe) {
+MyDB_RecordPtr MyDB_BPlusTreeReaderWriter :: split (MyDB_PageReaderWriter splitMe, MyDB_RecordPtr addMe) {
+    //cout<<"split"<<endl;
     MyDB_RecordIteratorAltPtr itr = splitMe.getIteratorAlt();
     MyDB_INRecordPtr middleRec = getINRecord();
     // create a new page
     int newPage =  this->getTable()->lastPage() + 1;
-    this->getTable()->setLastPage(newPage);
+    forMe->setLastPage(newPage);
+
 
     if (splitMe.getType() == RegularPage) {
         // Leaf Page
         // find number of records in this page
 
+        MyDB_RecordPtr lhs = getEmptyRecord();
+        MyDB_RecordPtr rhs = getEmptyRecord();
+        auto comp = buildComparator(lhs,rhs);
+        splitMe.sortInPlace(comp, lhs,rhs);
+
         MyDB_RecordPtr curr = this->getEmptyRecord();
         // construct comparator
-        function<bool()> comparatorLeaf = buildComparator(andMe, curr);
+        function<bool()> comparatorLeaf = buildComparator(addMe, curr); //return true is addMe < curr
         // store every record in the old page
         vector<MyDB_RecordPtr> oldRecList;
-        int counter = 0, found = 0;
+        bool found = false;
         while (itr->advance()) {
-            counter++;
             itr->getCurrent(curr);
-            if (!found) {
-                if (comparatorLeaf()) {
-                    // we find andMe's pos
-                    oldRecList.push_back(andMe);
-                    found = 1;
-                    counter++;
-                }
+            //cout<<curr<<endl;
+            if (!found && comparatorLeaf()) {
+                // we find andMe's pos
+                oldRecList.push_back(addMe);
+                found = true;
             }
             oldRecList.push_back(curr);
+        }
+        if(!found){
+            oldRecList.push_back(addMe);
         }
         // [ r1, r2 .... andMe .... rn] n+1 records
 
         splitMe.clear();
+        splitMe.setType(MyDB_PageType::RegularPage);
+        (*this)[newPage].clear();
+        (*this)[newPage].setType(MyDB_PageType::RegularPage);
 
         // append first half of records in current page to the new page, second half to the old page
-        int midPos = counter / 2;
-        for (int i = 1; i <= counter; i++) {
+        int midPos = oldRecList.size() / 2;
+        for (int i = 1; i <= oldRecList.size(); i++) {
             // now check myPos is in the first half or second half
             if (i <= midPos) {
                 (*this)[newPage].append(oldRecList[i-1]);
                 if (i == midPos) {
-                    middleRec->setKey(oldRecList[i-1]->getAtt(0)); //getAtt不知道对不对
+                    middleRec->setKey(getKey(oldRecList[i-1])); //getAtt不知道对不对
                 }
             } else {
                 splitMe.append(oldRecList[i-1]);
@@ -238,37 +259,49 @@ MyDB_RecordPtr MyDB_BPlusTreeReaderWriter :: split (MyDB_PageReaderWriter splitM
         // Inner Page
         // new page append an empty inner node
         MyDB_INRecordPtr curr = getINRecord();
+        //construct a comparatpor
+        function<bool()> comparatorIN = buildComparator(addMe, curr);//return true is addMe < curr
         // store every record in the old page
-        vector<MyDB_INRecordPtr> innerNodes;
-        int counter = 0;
+        vector<MyDB_RecordPtr> innerNodes;
+        bool found = false;
         while (itr->advance()) {
-            counter++;
             itr->getCurrent(curr);
+            if(!found && comparatorIN()){
+                innerNodes.push_back(addMe);
+                found = true;
+            }
             innerNodes.push_back(curr);
         }
+        if(!found){
+            innerNodes.push_back(addMe);
+        }
         splitMe.clear();
+        splitMe.setType(MyDB_PageType::DirectoryPage);
+        (*this)[newPage].clear();
+        (*this)[newPage].setType(MyDB_PageType::DirectoryPage);
         // kick the middle one to the parent inner page
-        int mid = counter / 2;
-        int child;
-        for (int i = 1; i <= counter; i++) {
+        int mid = innerNodes.size() / 2;
+
+        for (int i = 1; i <= innerNodes.size(); i++) {
             if (i < mid) {
                 (*this)[newPage].append(innerNodes[i-1]);
             } else if (i == mid) {
-                middleRec->setKey(innerNodes[i-1]->getKey());
-                child = innerNodes[i]->getPtr();
+                middleRec = static_pointer_cast<MyDB_INRecord>(innerNodes[i-1]);
             } else {
                 splitMe.append(innerNodes[i-1]);
             }
         }
         MyDB_INRecordPtr infinity = getINRecord();
         // middle record's child
-        infinity->setPtr(child);
+        infinity->setPtr(middleRec->getPtr());
+        //cout<<middleRec->getPtr()<<endl;
         (*this)[newPage].append(infinity);
         // 疑问：正无穷应该不算是一个record
         // done.
     }
     // modify pointers
     middleRec->setPtr(newPage);
+    //cout<<"finish split"<<endl;
     // return the IN Record of the new page
 	return middleRec;
 }
@@ -305,16 +338,18 @@ void MyDB_BPlusTreeReaderWriter :: printTree () {
                     whichPagesRW.push((*this)[mRec->getPtr()]);
 
                 }
-                cout<<"      ";//End of this page;
+                cout<<endl;
+                cout<<endl;//End of this page;
             }else{//leave node
                 cout<<"Leaf node(page number: "<<num<<"): ";
                 MyDB_RecordIteratorAltPtr it = RW.getIteratorAlt();
                 MyDB_RecordPtr mRec = getEmptyRecord();
                 while(it->advance()){
                     it->getCurrent(mRec);
-                    cout<<mRec<<" | ";
+                    cout<<mRec<<" - ";
                 }
-                cout<<"      ";//End of this page;
+                cout<<endl;
+                cout<<endl;//End of this page;
             }
         }
 

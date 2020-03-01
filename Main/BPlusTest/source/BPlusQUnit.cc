@@ -60,8 +60,10 @@ int main (int argc, char *argv[]) {
                 int counter = 0;
                 while (myIter->advance ()) {
                         myIter->getCurrent (temp);
+                        //cout<<temp<<endl;
                         counter++;
                 }
+        //supplierTable.printTree();
 		bool result = (counter == 10000);
 		if (result)
 			cout << "\tTEST PASSED\n";
@@ -70,7 +72,8 @@ int main (int argc, char *argv[]) {
                 QUNIT_IS_TRUE (result);
 	}
 	FALLTHROUGH_INTENDED;
-            break;
+	    break;
+
 	case 2:
 	{
 		cout << "TEST 2... creating tree for small table, on nationkey " << flush;
@@ -160,6 +163,7 @@ int main (int argc, char *argv[]) {
 		high->set ("slyly ironic~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
 
 		myIter = supplierTable.getRangeIteratorAlt (low, high);
+		cout<<"@22"<<endl;
 		int counter = 0;
 		bool foundIt = false;
        		while (myIter->advance ()) {
