@@ -1,0 +1,3 @@
+/Users/shiyuwang/edu/COMP530/Assignment4/DB_A4/cmake-build-debug/CMakeFiles/rebuild_cache.dir
+/Users/shiyuwang/edu/COMP530/Assignment4/DB_A4/cmake-build-debug/CMakeFiles/edit_cache.dir
+/Users/shiyuwang/edu/COMP530/Assignment4/DB_A4/cmake-build-debug/CMakeFiles/DB_A4.dir
